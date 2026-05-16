@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0D9488;
+  --color-secondary: #1E293B;
+  --color-background: #F8FAFC;
+  --color-accent-amber: #FBBF24;
+  --color-accent-sage: #34D399;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-secondary);
+    font-family: 'Inter', 'Roboto', sans-serif;
+  }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
