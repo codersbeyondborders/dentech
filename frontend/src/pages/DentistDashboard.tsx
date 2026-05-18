@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { LineChart, Line, YAxis, ResponsiveContainer } from 'recharts';
 import { AlertTriangle, AlertCircle, Webcam, CheckCircle2, Bluetooth, BluetoothConnected, Loader2, Brain, Wifi } from 'lucide-react';
 import { Link, useLocation, Navigate } from 'react-router-dom';

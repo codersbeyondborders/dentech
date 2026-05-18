@@ -13,7 +13,6 @@ function cx(...args: (string | undefined | null | false)[]) {
 
 const getCopy = (age: number, lang: string) => {
   const isKid = age <= 12;
-  const isSenior = age >= 65;
   const isHindi = lang?.trim().toLowerCase() === 'hindi';
   const isSpanish = lang?.trim().toLowerCase() === 'spanish';
 
@@ -321,7 +320,7 @@ export default function PatientView() {
                        {metrics.hr} BPM
                     </span>
                     <span className="flex items-center gap-1">
-                       <Wind className="w-4 h-4" /> {metrics.hrv}ms
+                       <Wind className="w-4 h-4" /> {metrics.skinTemp}°F
                     </span>
                  </div>
                </div>
