@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { LineChart, Line, YAxis, ResponsiveContainer } from 'recharts';
-import { AlertTriangle, AlertCircle, Webcam, CheckCircle2, Bluetooth, BluetoothConnected, Loader2, Brain } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { AlertTriangle, AlertCircle, Webcam, CheckCircle2, Bluetooth, BluetoothConnected, Loader2, Brain, Wifi } from 'lucide-react';
+import { Link, useLocation, Navigate } from 'react-router-dom';
 import { useDemoSync } from '../hooks/useDemoSync';
 import { useBiometrics } from '../contexts/BiometricsContext';
 import { useComputerVision } from '../hooks/useComputerVision';
@@ -13,27 +13,40 @@ function cx(...args: (string | undefined | null | false)[]) {
   return twMerge(clsx(args));
 }
 
-const PATIENT_PROFILES = [
-  { id: '1', name: 'John Doe', procedure: 'Routine Cleaning', history: 'No significant medical history. Normal resting heart rate.' },
-  { id: '2', name: 'Jane Smith', procedure: 'Root Canal', history: 'History of severe dental trauma. High anxiety. Currently taking Beta-blockers (lowers resting HR artificially, so HR > 85 is highly elevated for her).' },
-  { id: '3', name: 'Bob Jones', procedure: 'Cavity Filling', history: 'Asthmatic. Prone to panic attacks. Needs careful monitoring of breathing rate.' }
-];
-
 export default function DentistDashboard() {
+  const location = useLocation();
+  const patient = location.state?.patient;
+
+  // Redirect to intake if no patient data is found (e.g. they refreshed the page)
+  if (!patient) {
+    return <Navigate to="/intake" replace />;
+  }
+
+  useEffect(() => {
+    if (!patient) return;
+
+    // Post immediately on mount, then re-sync every 5s.
+    // This ensures the PatientView picks up the profile even if the
+    // backend restarted or the patient device connected after mount.
+    const syncProfile = () => {
+      import('../utils/apiConfig').then(({ getApiBaseUrl }) => {
+        fetch(`${getApiBaseUrl()}/api/state`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ patient_profile: patient })
+        }).catch(e => console.error('[Dentech] Failed to sync patient profile:', e));
+      });
+    };
+
+    syncProfile(); // immediate
+    const interval = setInterval(syncProfile, 5000);
+    return () => clearInterval(interval);
+  }, [patient]);
+
   const [currentCase, setSharedCase] = useDemoSync();
-  const [patientId, setPatientId] = useState('1');
-  const activeProfile = PATIENT_PROFILES.find(p => p.id === patientId) || PATIENT_PROFILES[0];
 
   const { metrics, historicalData: data, setCVOverrides, btDevice, btIsConnecting, connectWearable, disconnectWearable } = useBiometrics();
   const { videoRef, expression, movement } = useComputerVision();
-  const { analysis, streamingText, isAnalyzing, error } = useGemmaAnalysis(videoRef, activeProfile.history);
-
-  useEffect(() => {
-    // Pipe live CV states back into the global biometrics engine
-    if (expression || movement) {
-      setCVOverrides(expression, movement);
-    }
-  }, [expression, movement, setCVOverrides]);
 
   const hrIsExtreme = metrics.hr > 115;
   const hrIsMedium = metrics.hr > 90;
@@ -45,6 +58,19 @@ export default function DentistDashboard() {
   const isMedium = (!isExtreme && currentCase === 'medium') || (!isExtreme && cvIsMedium);
 
   const stressLevel = isExtreme ? 'high' : isMedium ? 'medium' : 'low';
+
+  // Build context string for Gemma
+  const patientContext = `Name: ${patient.name}\nAge: ${patient.age}\nLanguage: ${patient.language}\nLocation: ${patient.location}\nHistory: ${patient.history}`;
+
+  // Pass isExtreme to useGemmaAnalysis to force an anomaly and trigger analysis
+  const { analysis, streamingText, isAnalyzing, error } = useGemmaAnalysis(videoRef, patientContext, isExtreme);
+
+  useEffect(() => {
+    // Pipe live CV states back into the global biometrics engine
+    if (expression || movement) {
+      setCVOverrides(expression, movement);
+    }
+  }, [expression, movement, setCVOverrides]);
 
   const gaugeColor = stressLevel === 'low' ? 'text-accent-sage bg-accent-sage/10 border-accent-sage' :
                      stressLevel === 'medium' ? 'text-accent-amber bg-accent-amber/10 border-accent-amber' :
@@ -59,17 +85,12 @@ export default function DentistDashboard() {
       <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-secondary tracking-tight">Command Center</h1>
-          <div className="flex items-center gap-2 mt-2">
-            <span className="text-secondary/60">Monitoring:</span>
-            <select 
-              value={patientId} 
-              onChange={e => setPatientId(e.target.value)}
-              className="bg-gray-50 border border-gray-200 text-secondary rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              {PATIENT_PROFILES.map(p => (
-                <option key={p.id} value={p.id}>{p.name} - {p.procedure}</option>
-              ))}
-            </select>
+          <div className="flex items-center gap-2 mt-2 text-sm">
+            <span className="text-secondary/60">Patient:</span>
+            <span className="font-semibold text-secondary">{patient.name}</span>
+            <span className="text-secondary/40 px-1">|</span>
+            <span className="text-secondary/60">Procedure:</span>
+            <span className="font-medium text-secondary">{patient.procedure}</span>
           </div>
         </div>
         <div className="flex items-center gap-4 bg-white p-2 rounded-full shadow-sm border border-gray-100">
@@ -118,6 +139,16 @@ export default function DentistDashboard() {
           <Link to="/" className="text-primary hover:underline px-4 text-sm font-medium">Exit</Link>
         </div>
       </header>
+
+      {/* Network Connectivity Helper */}
+      <div className="mb-6 bg-blue-50 border border-blue-100 p-4 rounded-xl flex items-center justify-between text-sm text-blue-800 shadow-sm">
+        <div className="flex items-center gap-3">
+          <Wifi className="w-5 h-5 text-blue-500" />
+          <p>
+            <span className="font-semibold">Patient Screen Setup:</span> To connect a patient tablet, turn on this machine's Mobile Hotspot and connect the tablet to it. Then, select "Patient Screen" on the tablet and enter this computer's local IP address (e.g. 192.168.x.x).
+          </p>
+        </div>
+      </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">

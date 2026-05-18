@@ -1,0 +1,100 @@
+# Dentech: Bio-Responsive Dental Interventions Powered by Gemma 4
+
+*A real-time, context-aware biometric monitoring system that synchronizes patient stress tracking with automated environmental feedback across multiple devices.*
+
+## 1. Introduction & Overview
+
+Dentech is an innovative dental platform designed to tackle one of the most pervasive challenges in dentistry: patient anxiety. By integrating real-time biometric data and live computer vision, Dentech monitors patient stress levels and automatically triggers synchronized visual and audio interventions to soothe patients before and during procedures.
+
+The platform provides dual interfaces: a relaxing, bio-responsive Patient View that adjusts its content based on stress markers and patient demographics, and a comprehensive Dentist Dashboard that provides clinicians with real-time analytics and Gemma 4-powered clinical insights. Our submission demonstrates a robust dual-client, edge-to-core architecture capable of handling intensive biometric streams while delivering highly contextual, low-latency AI interventions across physically separate devices.
+
+## 2. Background & The Care Gap
+
+Children with Autism Spectrum Disorder (ASD) often delay or avoid dental care because the clinical setting can trigger sensory overload, anxiety, and uncooperative behaviour. Bright lights, drilling sounds, unfamiliar touch, unfamiliar people, and sudden routine changes can quickly escalate distress. When anxiety rises quickly in the chair, it often leads to crying or refusal. This results in interrupted or incomplete treatment and poses a higher safety risk during procedures.
+
+**Why it matters:** Delayed care leads to untreated oral disease, more invasive treatment later, and greater long-term oral health inequality. The problem is not only the child—the dental environment itself does not adapt early enough to prevent escalating distress.
+
+**The Evidence Shows a Major Care Gap:**
+Dental anxiety and treatment disruptions are common, costly, and clinically significant:
+- **68%** of children with ASD exhibit elevated dental anxiety.
+- Treatment success jumps from **20% to 68%** when moving from a regular to a sensory-adapted environment.
+- **30%** of these patients may require general anaesthesia (GA) even for a routine dental cleaning.
+
+**A Large Unmet Market Opportunity:**
+There are 2 million children with ASD in the US alone who need oral healthcare. This represents both a clinical problem and a product gap in special-needs dentistry. Clinics lack tools to detect distress and adapt care in real time, yet they want to serve these patients safely.
+
+The biggest advantage of Dentech is the **Curb-Cut Effect**: innovating for extreme cases provides benefits for the larger population of anxious dental patients. Dentech provides integrated, real-time prevention right in the dental chair. Furthermore, our solution is mobile-first and completely offline, making it ideal for LMIC (Low and Middle-Income Countries) with limited internet access.
+
+## 3. System Architecture
+
+Dentech is built on a modern, decoupled dual-client architecture to ensure responsiveness and stability during intensive continuous monitoring across physically separate devices.
+
+**Frontend (Edge Processing):**
+- **Framework:** React 19 + TypeScript, built with Vite.
+- **Dual-Client Design:** The Dentist Dashboard (hub) and Patient View (tablet) run as independent browser clients on separate devices connected over the local network (Wi-Fi hotspot). Each device syncs state through the shared backend.
+- **Biometric Ingestion:** We utilize the Web Bluetooth API to stream real-time heart rate data directly from patient wearables.
+- **Computer Vision:** Google's MediaPipe Face Landmarker (`@mediapipe/tasks-vision`) runs locally in the browser to analyze facial expressions and micro-movements, detecting signs of distress without sending video streams over the network.
+- **Anomaly Detection:** The frontend handles edge processing of biometric and vision streams. A lightweight anomaly detection layer flags significant deviations in stress markers, routing only crucial events to the backend for heavy LLM analysis.
+
+**Backend (Core Processing & State Hub):**
+- **Framework:** Python with FastAPI and Uvicorn.
+- **AI Inference Engine:** `llama-cpp-python` and `huggingface-hub` for local, fast execution of the Gemma 4 E2B model (Q4_K_M quantization).
+
+## 4. How We Specifically Used Gemma 4
+
+Gemma 4 sits at the core of our clinical decision support system, functioning as an intelligent, context-aware medical assistant.
+
+**Context-Aware Medical RAG:**
+Instead of relying on generic prompt responses, we integrated a Retrieval-Augmented Generation (RAG) approach. When the frontend detects a stress anomaly (e.g., sudden heart rate spike combined with facial grimacing), the backend passes time-series biometric data alongside the patient's specific clinical history profile to Gemma 4.
+
+**Fast Clinical Text Streaming & Deterministic Outputs:**
+We specifically leveraged Gemma 4's strong instruction-following capabilities to produce deterministic JSON outputs and fast clinical text streams. When an intervention is necessary, Gemma 4 rapidly synthesizes the biometric trigger and historical context to suggest immediate clinical actions to the dentist (e.g., "Patient history indicates high anxiety to local anesthetic; recommend pausing procedure and initiating deep breathing audio cue"). The LLM's speed, especially when running locally via `llama-cpp-python`, was crucial for providing near-instantaneous feedback required in a live clinical setting.
+
+## 5. Key Features
+
+**Demographic-Aware Localization:**
+The Patient View dynamically adapts its language and content based on the patient profile entered at intake:
+- **Age-aware UI:** Children (≤12) see playful, encouraging language ("You are doing great! Watch the pretty colours.") while adults see calm, clinical copy ("Breathe in slowly...").
+- **Multi-language support:** The interface automatically renders in Hindi, Spanish, or English (with age-language combinations — e.g., a Hindi-speaking child gets age-appropriate Hindi copy).
+- **Real-time sync:** The Dentist Dashboard continuously syncs the patient profile (name, age, language, procedure) to the shared backend state. The Patient View polls this every second and updates its copy live — no page refresh required.
+
+**Dual-Device Real-Time State Sync:**
+- The dentist's laptop (hub) and the patient's tablet communicate exclusively through the shared FastAPI `/api/state` endpoint over a local Wi-Fi hotspot — no internet required.
+- Case changes (Normal → Medium → Extreme) propagate to the patient screen within ~1 second.
+- The patient's own tablet also has manual case override buttons for demo purposes.
+
+**Bio-Responsive Patient View:**
+- Background ambient colors pulse in sync with the patient's heart rate (calculated as `240 / HR` seconds per cycle).
+- In extreme distress mode, a full-screen animated breathing circle guides the patient through a 4-3-4 second inhale-hold-exhale cycle with phase labels in their native language.
+- Visual intensity scales smoothly across three stress tiers: Normal, Medium, and Extreme.
+
+**Gemma 4 Function Calling:**
+The model outputs structured JSON function calls (e.g., `triggerBreathingExercise({intensity: "extreme"})`) that the PatientView automatically interprets to escalate its visual state — closing the loop between AI reasoning and patient-facing intervention.
+
+**Patient Intake & Presets:**
+A structured intake form captures name, age, language, location, procedure, and full medical history. Three demo quick-load presets (John Doe / English adult, Aarav Patel / Hindi-speaking child, Maria Garcia / Spanish-speaking senior) allow immediate demonstration of all localization and age-adaptation scenarios.
+
+## 6. Challenges Overcome
+
+**Performance Stability:**
+Early iterations suffered from severe performance degradation, browser crashes, and system freezes. We were running continuous facial landmark detection and sending overlapping, high-frequency requests to the backend on almost every frame. We fundamentally restructured to an event-driven Edge-to-Core paradigm: throttled frame capture, threshold-based anomaly detection, and single-cycle inference guards eliminated the instability.
+
+**Cross-Device State Propagation:**
+The patient profile was originally POSTed to the backend only once on dashboard mount. We solved this by making the dashboard continuously re-sync the profile every 5 seconds, ensuring the patient screen always recovers correct language/age context.
+
+
+## 7. Why Our Technical Choices Were the Right Ones
+
+**Local Execution of Gemma 4:**
+Choosing `llama-cpp-python` for local Gemma 4 execution rather than a cloud API was deliberate. Dental clinics handle highly sensitive Protected Health Information (PHI). Keeping inference local eliminates latency bottlenecks during time-critical procedures and ensures strict data privacy compliance — patient data never leaves the clinic's network.
+
+**Web Bluetooth & MediaPipe for Edge Computing:**
+By utilizing Web Bluetooth and in-browser MediaPipe execution, we pushed heavy sensor ingestion and visual processing to the edge. The backend receives only clean, pre-processed anomaly flags, not raw video or wearable streams.
+
+**Shared State Bus over REST:**
+Rather than WebSockets or a dedicated message broker (both of which add complexity and require persistent connections), we used a lightweight polling model against a simple `/api/state` REST endpoint. This works reliably across NAT boundaries (hotspot networks), survives brief disconnections gracefully, and requires zero additional infrastructure beyond the existing FastAPI server.
+
+**React 19 & FastAPI:**
+React 19 provided the concurrent rendering features necessary to keep the Patient View's animations smooth even while processing WebGL and Bluetooth streams. FastAPI was selected for its native asynchronous capabilities, allowing the backend to efficiently handle multiple concurrent polling clients and long-running LLM generation streams without blocking.
+
+Dentech proves that by intelligently combining edge-based biometric processing, demographic-aware localization, and the localized rapid reasoning of Gemma 4, we can build sophisticated, privacy-first healthcare applications that actively improve patient experiences in real time — across any device, in any language.

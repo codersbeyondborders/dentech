@@ -39,8 +39,10 @@ function extractReasoningFromStream(accumulated: string): string {
   return '';
 }
 
-export function useGemmaAnalysis(videoRef: React.RefObject<HTMLVideoElement | null> | undefined, patientHistory: string) {
+export function useGemmaAnalysis(videoRef: React.RefObject<HTMLVideoElement | null> | undefined, patientHistory: string, forceAnomaly: boolean = false) {
   const { metrics, historicalData } = useBiometrics();
+  const forceAnomalyRef = useRef(forceAnomaly);
+  forceAnomalyRef.current = forceAnomaly;
 
   // Refs so interval closure always reads fresh data without being a dep
   const metricsRef        = useRef(metrics);
@@ -84,7 +86,8 @@ export function useGemmaAnalysis(videoRef: React.RefObject<HTMLVideoElement | nu
         if (frame) formData.append('image', frame, 'frame.jpg');
       }
 
-      const response = await fetch('http://127.0.0.1:8000/api/analyze/stream', {
+      const { getApiBaseUrl } = await import('../utils/apiConfig');
+      const response = await fetch(`${getApiBaseUrl()}/api/analyze/stream`, {
         method: 'POST',
         body: formData,
       });
@@ -127,11 +130,17 @@ export function useGemmaAnalysis(videoRef: React.RefObject<HTMLVideoElement | nu
               lastExpressionRef.current = metricsRef.current.expression ?? '';
 
               if (data.function_calls?.length > 0) {
-                const channel = new BroadcastChannel('sensory-ai-actions');
-                data.function_calls.forEach(call => {
-                  channel.postMessage({ type: 'AI_ACTION', payload: call });
-                });
-                channel.close();
+                // Post to API instead of BroadcastChannel
+                const { getApiBaseUrl } = await import('../utils/apiConfig');
+                try {
+                  await fetch(`${getApiBaseUrl()}/api/state`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ last_intervention: data.function_calls })
+                  });
+                } catch (e) {
+                  console.error('Failed to sync intervention', e);
+                }
               }
             }
           } catch {
@@ -159,7 +168,7 @@ export function useGemmaAnalysis(videoRef: React.RefObject<HTMLVideoElement | nu
       const isHrAnomaly         = hr > 90 || hr < 50;
       const isMovementAnomaly   = movement !== 'Stable' && movement !== '';
       
-      const isAnomaly = isExpressionAnomaly || isHrAnomaly || isMovementAnomaly;
+      const isAnomaly = isExpressionAnomaly || isHrAnomaly || isMovementAnomaly || forceAnomalyRef.current;
 
       // Expression changed → wipe old result and re-analyze immediately
       const expressionChanged = expression !== lastExpressionRef.current && lastExpressionRef.current !== '';

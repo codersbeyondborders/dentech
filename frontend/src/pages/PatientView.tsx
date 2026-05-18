@@ -2,12 +2,109 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useDemoSync } from '../hooks/useDemoSync';
 import { useBiometrics } from '../contexts/BiometricsContext';
-import { Sparkles, Moon, Volume2 } from 'lucide-react';
+import { getApiBaseUrl } from '../utils/apiConfig';
+import { Sparkles, Moon, Volume2, Wifi, Heart, Wind } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 function cx(...args: (string | undefined | null | false)[]) {
   return twMerge(clsx(args));
+}
+
+const getCopy = (age: number, lang: string) => {
+  const isKid = age <= 12;
+  const isSenior = age >= 65;
+  const isHindi = lang?.trim().toLowerCase() === 'hindi';
+  const isSpanish = lang?.trim().toLowerCase() === 'spanish';
+
+  if (isKid && isHindi) {
+    return {
+      inhalePhase: "साँस अंदर",
+      holdPhase: "रुकें",
+      exhalePhase: "साँस छोड़ें",
+      extremeTitle: "एक लंबी साँस लें",
+      extremeInhale: "धीरे-धीरे साँस अंदर लें... (Breathe in slowly)",
+      extremeHold: "साँस रोक कर रखें... (Hold...)",
+      extremeExhale: "आराम से साँस छोड़ें... (Exhale to relax)",
+      mediumTitle: "यहाँ ध्यान दें",
+      mediumSubtitle: "सर्कल के साथ साँस लें. अंदर... बाहर...",
+      normalTitle: "जादू शुरू हो रहा है!",
+      normalSubtitle: "आप बहुत बहादुर हैं! रंगों को देखें।",
+      footerProgress: "प्रक्रिया की प्रगति",
+      footerStep: "चरण 2: दांत भरना",
+      footerPaused: "रुका हुआ है",
+      footerMetrics: "महत्वपूर्ण संकेतक"
+    }
+  } else if (isKid) {
+    return {
+      inhalePhase: "Inhale",
+      holdPhase: "Hold",
+      exhalePhase: "Exhale",
+      extremeTitle: "Let's take a big breath",
+      extremeInhale: "Breathe in slowly like a balloon...",
+      extremeHold: "Hold it...",
+      extremeExhale: "Let it out slowly...",
+      mediumTitle: "Look at the circle",
+      mediumSubtitle: "Breathe with the circle. In... and out...",
+      normalTitle: "The magic is starting!",
+      normalSubtitle: "You are doing great! Watch the pretty colors.",
+      footerProgress: "Adventure Progress",
+      footerStep: "Step 2: Fighting Sugar Bugs",
+      footerPaused: "Taking a break",
+      footerMetrics: "Superpowers Level"
+    }
+  } else if (isSpanish) {
+    return {
+      inhalePhase: "Inhalar",
+      holdPhase: "Sostener",
+      exhalePhase: "Exhalar",
+      extremeTitle: "Tome una respiración profunda",
+      extremeInhale: "Respire lentamente...",
+      extremeHold: "Sostenga...",
+      extremeExhale: "Exhale para relajarse...",
+      mediumTitle: "Concéntrese aquí",
+      mediumSubtitle: "Haga coincidir su respiración con el círculo. Inhale... y exhale...",
+      normalTitle: "Respire profundamente...",
+      normalSubtitle: "Lo está haciendo muy bien. Relájese y concéntrese en los colores.",
+      footerProgress: "Progreso del procedimiento",
+      footerStep: "Paso 2: Fase de llenado",
+      footerPaused: "En pausa",
+      footerMetrics: "Signos vitales"
+    }
+  } else if (isHindi) {
+    return {
+      inhalePhase: "साँस अंदर",
+      holdPhase: "रुकें",
+      exhalePhase: "साँस बाहर",
+      extremeTitle: "गहरी साँस लें",
+      extremeInhale: "धीरे-धीरे साँस अंदर लें...",
+      extremeHold: "रुकें...",
+      extremeExhale: "साँस छोड़ें और आराम करें...",
+      mediumTitle: "यहाँ ध्यान दें",
+      mediumSubtitle: "अपनी साँसों को इस घेरे के साथ मिलाएं। साँस अंदर... साँस बाहर...",
+      normalTitle: "गहरी साँस लें...",
+      normalSubtitle: "आप बहुत अच्छा कर रहे हैं। आराम करें और रंगों पर ध्यान दें।",
+      footerProgress: "प्रक्रिया की प्रगति",
+      footerStep: "चरण 2: दांत भरना",
+      footerPaused: "रुका हुआ है",
+      footerMetrics: "महत्वपूर्ण संकेतक"
+    }
+  }
+
+  // Default English Adult
+  return {
+      inhalePhase: "Inhale",
+      holdPhase: "Hold",
+      exhalePhase: "Exhale",
+      extremeTitle: "Take a Deep Breath",
+      extremeInhale: "Breathe in slowly...",
+      extremeHold: "Hold...",
+      extremeExhale: "Exhale to relax...",
+      mediumTitle: "Focus Here",
+      mediumSubtitle: "Match your breathing to the expanding circle. Inhale... Exhale...",
+      normalTitle: "Breathe In...",
+      normalSubtitle: "You're doing great. We are taking care of everything. Let the colors guide your breath.",
+  }
 }
 
 export default function PatientView() {
@@ -16,6 +113,10 @@ export default function PatientView() {
 
   const [progress, setProgress] = useState(0);
   const [breathPhase, setBreathPhase] = useState<'inhale' | 'hold' | 'exhale'>('inhale');
+  const [patientProfile, setPatientProfile] = useState<any>(null);
+  
+  const hubIp = localStorage.getItem('dentech_hub_ip');
+  const isRemote = !!hubIp;
 
   useEffect(() => {
     // Simulate procedure progression
@@ -33,22 +134,37 @@ export default function PatientView() {
 
   // Listen for Gemma AI function calls to auto-trigger interventions
   useEffect(() => {
-    const channel = new BroadcastChannel('sensory-ai-actions');
-    channel.onmessage = (event) => {
-      if (event.data?.type === 'AI_ACTION' && event.data?.payload) {
-        const action = event.data.payload;
-        const name = typeof action === 'string' ? action : action.name;
-        const args = typeof action === 'string' ? {} : action.arguments;
-        
-        if (name === 'triggerBreathingExercise' && args?.intensity === 'extreme') {
-          setSharedCase('extreme');
-        } else if (name === 'changeAmbientLighting') {
-          // E.g., could apply the color dynamically to the root background
+    let lastInterventionStr = '';
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/api/state`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.patient_profile) {
+            setPatientProfile(data.patient_profile);
+          }
+          const currentInterventionStr = JSON.stringify(data.last_intervention || []);
+          if (data.last_intervention && currentInterventionStr !== lastInterventionStr) {
+            lastInterventionStr = currentInterventionStr;
+            data.last_intervention.forEach((action: any) => {
+              const name = typeof action === 'string' ? action : action.name;
+              const args = typeof action === 'string' ? {} : action.arguments;
+              
+              if (name === 'triggerBreathingExercise' && args?.intensity === 'extreme') {
+                setSharedCase('extreme');
+              } else if (name === 'changeAmbientLighting') {
+                // E.g., could apply the color dynamically to the root background
+              }
+            });
+          }
         }
+      } catch (err) {
+        // Silently ignore polling errors
       }
-    };
-    return () => channel.close();
-  }, [setSharedCase]);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []); // Run once — setSharedCase is stable
+
 
   // Breathing cycle logic for extreme distress
   useEffect(() => {
@@ -74,6 +190,13 @@ export default function PatientView() {
 
   const isExtreme = currentCase === 'extreme' || cvIsExtreme;
   const isMedium = (!isExtreme && currentCase === 'medium') || (!isExtreme && cvIsMedium);
+
+  const age = patientProfile?.age ? parseInt(patientProfile.age) : 30;
+  const lang = patientProfile?.language || 'English';
+  const copy = getCopy(age, lang);
+
+  // DEBUG LOGGING
+  // console.log("Profile:", patientProfile, "Age:", age, "Lang:", lang);
 
   // Bio-responsive background pulsing based on Heart Rate
   // e.g. HR=60 -> 4s pulse, HR=120 -> 2s pulse
@@ -113,6 +236,17 @@ export default function PatientView() {
 
       <header className="relative z-10 p-8 flex justify-between items-center bg-gradient-to-b from-black/20 to-transparent">
         <Link to="/" className="text-white/40 hover:text-white/80 transition-colors">Exit Calm Zone</Link>
+        
+        {isRemote && (
+          <div className="flex items-center gap-2 text-white/60 text-sm bg-white/10 backdrop-blur px-3 py-1.5 rounded-full border border-white/10 shadow-sm ml-4 absolute left-1/4">
+            <Wifi className="w-4 h-4 text-green-400" />
+            <span>Hub: {hubIp}</span>
+          </div>
+        )}
+
+        <div className="absolute left-4 top-4 text-xs text-white/30 font-mono">
+          Profile Sync: {patientProfile ? `${patientProfile.language} (${patientProfile.age})` : 'Waiting for Hub...'}
+        </div>
 
         {/* Demo Controller buttons */}
         <div className="flex gap-2 mx-auto bg-white/10 backdrop-blur-md p-1 rounded-full border border-white/10">
@@ -139,13 +273,15 @@ export default function PatientView() {
                  breathPhase === 'hold' ? 'scale-150 border-indigo-400/80 bg-indigo-500/40 duration-[3000ms]' :
                  'scale-100 border-white/20 bg-transparent duration-[4000ms]'
              )}>
-                 <span className="text-white text-2xl font-light uppercase tracking-widest">{breathPhase}</span>
+                 <span className="text-white text-xl md:text-2xl font-light uppercase tracking-widest text-center px-4">
+                    {breathPhase === 'inhale' ? copy.inhalePhase : breathPhase === 'hold' ? copy.holdPhase : copy.exhalePhase}
+                 </span>
              </div>
-             <h1 className="text-4xl md:text-5xl font-light text-white mb-6 tracking-wide">Take a Deep Breath</h1>
+             <h1 className="text-4xl md:text-5xl font-light text-white mb-6 tracking-wide">{copy.extremeTitle}</h1>
              <p className="text-xl md:text-2xl text-blue-200/70 max-w-lg mx-auto font-light leading-relaxed transition-opacity duration-1000">
-               {breathPhase === 'inhale' && "Breathe in slowly..."}
-               {breathPhase === 'hold' && "Hold..."}
-               {breathPhase === 'exhale' && "Exhale to relax..."}
+               {breathPhase === 'inhale' && copy.extremeInhale}
+               {breathPhase === 'hold' && copy.extremeHold}
+               {breathPhase === 'exhale' && copy.extremeExhale}
              </p>
            </div>
          ) : isMedium ? (
@@ -153,17 +289,17 @@ export default function PatientView() {
              <div className="w-24 h-24 rounded-full border-4 border-white/20 mx-auto flex items-center justify-center mb-8 relative">
                 <div style={{ animationDuration: pulseDuration }} className="absolute inset-0 border-4 border-white rounded-full animate-[ping_3s_infinite]"></div>
              </div>
-             <h1 className="text-4xl md:text-6xl font-light text-white mb-4 tracking-wide">Focus Here</h1>
+             <h1 className="text-4xl md:text-6xl font-light text-white mb-4 tracking-wide">{copy.mediumTitle}</h1>
              <p className="text-xl md:text-2xl text-white/70 max-w-lg mx-auto font-light leading-relaxed">
-               Match your breathing to the expanding circle. Inhale... Exhale...
+               {copy.mediumSubtitle}
              </p>
            </div>
          ) : (
            <div className="animate-in fade-in duration-1000">
              <Sparkles style={{ animationDuration: pulseDuration }} className="w-16 h-16 text-primary mb-8 mx-auto animate-[bounce_4s_infinite]" />
-             <h1 className="text-4xl md:text-6xl font-light text-white mb-4 tracking-wide">Breathe In...</h1>
+             <h1 className="text-4xl md:text-6xl font-light text-white mb-4 tracking-wide">{copy.normalTitle}</h1>
              <p className="text-xl md:text-2xl text-white/50 max-w-lg mx-auto font-light leading-relaxed">
-               You're doing great. We are taking care of everything. Let the colors guide your breath.
+               {copy.normalSubtitle}
              </p>
            </div>
          )}
@@ -172,10 +308,25 @@ export default function PatientView() {
       <footer className={cx("relative z-10 p-8 md:p-16 max-w-4xl w-full mx-auto transition-opacity duration-1000", isExtreme ? 'opacity-30' : 'opacity-100')}>
          <div className="flex justify-between items-end mb-4">
             <div>
-               <p className="text-white/80 font-medium mb-1">Procedure Progress</p>
-               <p className="text-sm text-white/40">{isExtreme ? 'Paused' : 'Step 2 of 3: Filling Phase'}</p>
+               <p className="text-white/80 font-medium mb-1">{copy.footerProgress}</p>
+               <p className="text-sm text-white/40">{isExtreme ? copy.footerPaused : copy.footerStep}</p>
             </div>
-            <p className="text-2xl font-light text-white">{Math.floor(progress)}%</p>
+            <div className="flex items-end gap-6 text-right">
+               <div>
+                 <p className="text-white/80 font-medium mb-1">{copy.footerMetrics}</p>
+                 <div className="flex items-center justify-end gap-4 text-sm text-white/50">
+                    <span className={cx("flex items-center gap-1 transition-colors duration-500", 
+                        metrics.hr > 85 ? "text-rose-400 font-medium" : "")}>
+                       <Heart className={cx("w-4 h-4", metrics.hr > 85 ? "animate-pulse" : "")} /> 
+                       {metrics.hr} BPM
+                    </span>
+                    <span className="flex items-center gap-1">
+                       <Wind className="w-4 h-4" /> {metrics.hrv}ms
+                    </span>
+                 </div>
+               </div>
+               <p className="text-2xl font-light text-white">{Math.floor(progress)}%</p>
+            </div>
          </div>
          <div className="h-4 bg-white/10 backdrop-blur rounded-full overflow-hidden border border-white/5">
             <div 

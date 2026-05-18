@@ -2,17 +2,26 @@
 
 dentech is an innovative dental platform powered by Gemma 4 that integrates real-time biometric data and computer vision to monitor patient stress levels and synchronize visual and audio interventions. It features dual interfaces: a Dentist Dashboard for clinical monitoring and a Patient View for bio-responsive feedback.
 
-## Key Features
+## Unified Dual-Role Architecture
 
-- **Real-Time Biometric Tracking**: Captures and processes patient stress markers using Web Bluetooth and heart rate data.
-- **Live Computer Vision**: Utilizes MediaPipe Face Landmarker to analyze facial expressions and movements.
-- **Bio-Responsive Interventions**: Automatically adjusts visual and audio environments in the Patient View based on stress levels.
-- **Synchronized Dashboards**: Provides a cohesive experience between the clinical Dentist Dashboard and the relaxing Patient View.
-- **Gemma 4 Inference Engine**: Utilizes local Gemma 4 LLM execution for fast clinical text streaming and deterministic JSON output.
+dentech is deployed as a **Tauri-based desktop application** designed for offline, low-resource environments (e.g., LMIC clinics) where internet connectivity may be unreliable. 
+Instead of requiring a central cloud server, the system operates locally over a **WiFi Hotspot**. 
+
+The app features a unified installer that allows the user to select their role upon launch:
+- **Main Hub (Dentist + AI Backend)**: Runs the Dentist Dashboard and explicitly spawns the intensive Gemma 4 AI backend as a secure sidecar process.
+- **Patient Screen (Edge Client)**: Runs the lightweight Patient View and biometric/computer vision ingestion. It connects to the Main Hub over the local network.
+
+### Offline Deployment Instructions
+
+To use dentech offline across two devices:
+1. **Network Setup**: Turn on the "Mobile Hotspot" feature on the primary computer (Main Hub). Connect the patient tablet/secondary machine to this hotspot.
+2. **Launch Main Hub**: Open the dentech app on the primary computer and select "Main Hub". Note the computer's local network IP address (e.g. `192.168.x.x`).
+3. **Launch Patient Screen**: Open the dentech app on the secondary device, select "Patient Screen", and enter the Main Hub's local IP address when prompted.
 
 ## Tech Stack
 
-- **Framework**: React 19 + TypeScript
+- **Desktop Framework**: Tauri (Rust)
+- **Frontend**: React 19 + TypeScript
 - **Build Tool**: Vite
 - **Styling**: Tailwind CSS
 - **Computer Vision**: Google MediaPipe (`@mediapipe/tasks-vision`)
@@ -23,7 +32,7 @@ dentech is an innovative dental platform powered by Gemma 4 that integrates real
 - **Backend API**: Python, FastAPI, Uvicorn
 - **AI/LLM**: Gemma 4 (`llama-cpp-python`, `huggingface-hub`)
 
-## Getting Started
+## Getting Started (Development)
 
 1. Install frontend dependencies:
    ```bash
@@ -31,15 +40,13 @@ dentech is an innovative dental platform powered by Gemma 4 that integrates real
    npm install
    ```
 
-2. Start the Vite development server:
+2. Start the Tauri development server:
    ```bash
    cd frontend
-   npm run dev
+   npm run tauri dev
    ```
 
-3. Open your browser and navigate to the local server URL provided by Vite.
-
-4. In a new terminal, set up and run the Python backend:
+3. The Python backend dependencies and execution are managed via the Tauri sidecar infrastructure, but to run it independently during web-only dev:
    ```bash
    cd backend
    python -m venv venv
@@ -48,9 +55,8 @@ dentech is an innovative dental platform powered by Gemma 4 that integrates real
    uvicorn main:app --reload
    ```
 
-## Available Scripts
+## Available Scripts (Frontend)
 
-- `npm run dev`: Starts the development server.
-- `npm run build`: Builds the app for production.
-- `npm run lint`: Runs ESLint to check for code issues.
-- `npm run preview`: Previews the production build locally.
+- `npm run tauri dev`: Starts the Tauri desktop application in development mode.
+- `npm run tauri build`: Packages the app for production distribution.
+- `npm run dev`: Starts the Vite web server for browser testing.
